@@ -1,0 +1,276 @@
+name: Healthcare Analytics
+version: 1.0.0
+description: Configuration for healthcare data analysis and reporting
+
+# Data Sources
+data_sources:
+  patients:
+    type: database
+    connection: ${DATABASE_URL}
+    table: patients
+    schema:
+      - name: patient_id
+        type: string
+        primary_key: true
+      - name: name
+        type: string
+      - name: dob
+        type: date
+      - name: gender
+        type: string
+      - name: insurance_id
+        type: string
+      - name: risk_score
+        type: float
+
+  encounters:
+    type: database
+    connection: ${DATABASE_URL}
+    table: encounters
+    schema:
+      - name: encounter_id
+        type: string
+        primary_key: true
+      - name: patient_id
+        type: string
+      - name: date
+        type: datetime
+      - name: provider_id
+        type: string
+      - name: diagnosis_codes
+        type: array
+      - name: procedure_codes
+        type: array
+      - name: cost
+        type: float
+
+  lab_results:
+    type: database
+    connection: ${DATABASE_URL}
+    table: lab_results
+    schema:
+      - name: result_id
+        type: string
+        primary_key: true
+      - name: patient_id
+        type: string
+      - name: test_code
+        type: string
+      - name: value
+        type: float
+      - name: unit
+        type: string
+      - name: date
+        type: datetime
+      - name: status
+        type: string
+
+# KPI Definitions
+kpis:
+  readmission_rate:
+    name: 30-Day Readmission Rate
+    description: Percentage of patients readmitted within 30 days
+    query: |
+      WITH readmissions AS (
+        SELECT patient_id,
+               encounter_id,
+               date,
+               LEAD(date) OVER (PARTITION BY patient_id ORDER BY date) as next_admission
+        FROM encounters
+      )
+      SELECT 
+        COUNT(CASE WHEN next_admission - date <= INTERVAL '30 days' THEN 1 END)::float / COUNT(*)::float * 100 as readmission_rate
+      FROM readmissions
+    format: percentage
+
+  average_length_of_stay:
+    name: Average Length of Stay
+    description: Average duration of hospital stays
+    query: |
+      SELECT AVG(discharge_date - admission_date) as avg_los
+      FROM encounters
+      WHERE status = 'completed'
+    format: duration
+
+  patient_satisfaction:
+    name: Patient Satisfaction Score
+    description: Average patient satisfaction rating
+    query: |
+      SELECT AVG(satisfaction_score) as avg_satisfaction
+      FROM surveys
+      WHERE survey_type = 'patient_satisfaction'
+    format: score
+
+# Dashboard Templates
+dashboards:
+  clinical_metrics:
+    title: Clinical Performance Dashboard
+    refresh_rate: 1h
+    charts:
+      - name: Readmission Trend
+        type: line
+        metrics: [readmission_rate]
+        dimensions: [date]
+        group_by: month
+        
+      - name: Length of Stay by Department
+        type: bar
+        metrics: [average_length_of_stay]
+        dimensions: [department]
+        
+      - name: Patient Risk Distribution
+        type: histogram
+        metrics: [risk_score]
+        dimensions: [patient_count]
+
+  operational_metrics:
+    title: Operational Analytics
+    refresh_rate: 1h
+    charts:
+      - name: Daily Patient Volume
+        type: line
+        metrics: [patient_count]
+        dimensions: [date]
+        
+      - name: Resource Utilization
+        type: heatmap
+        metrics: [utilization_rate]
+        dimensions: [department, hour]
+        
+      - name: Cost per Patient
+        type: box
+        metrics: [cost]
+        dimensions: [department]
+
+# ETL Pipelines
+pipelines:
+  clinical_data_sync:
+    schedule: "0 */4 * * *"  # Every 4 hours
+    steps:
+      - name: Extract Clinical Data
+        type: sql
+        query: |
+          SELECT *
+          FROM encounters
+          WHERE date >= CURRENT_TIMESTAMP - INTERVAL '4 hours'
+          
+      - name: Transform
+        type: python
+        file: transforms/clinical_transform.py
+        
+      - name: Load Analytics
+        type: sql
+        query_file: queries/load_clinical_analytics.sql
+
+  risk_score_update:
+    schedule: "0 0 * * *"  # Daily at midnight
+    steps:
+      - name: Calculate Risk Scores
+        type: python
+        file: models/risk_score_calculator.py
+        
+      - name: Update Patient Records
+        type: sql
+        query_file: queries/update_risk_scores.sql
+
+# ML Models
+models:
+  readmission_risk:
+    type: classification
+    target: is_readmitted
+    features:
+      - age
+      - gender
+      - diagnosis_codes
+      - previous_admissions
+      - length_of_stay
+      - comorbidities
+    hyperparameters:
+      model_type: xgboost
+      max_depth: 8
+      learning_rate: 0.05
+      n_estimators: 200
+
+  length_of_stay_prediction:
+    type: regression
+    target: length_of_stay
+    features:
+      - age
+      - admission_type
+      - diagnosis_codes
+      - department
+      - risk_score
+    hyperparameters:
+      model_type: lightgbm
+      num_leaves: 31
+      learning_rate: 0.05
+      n_estimators: 150
+
+# Alerts Configuration
+alerts:
+  high_risk_admission:
+    type: ml_prediction
+    model: readmission_risk
+    threshold: 0.7
+    channels: [email, ehr]
+    template: alerts/high_risk_patient.html
+
+  abnormal_lab_result:
+    type: threshold
+    metric: lab_value
+    condition: "outside_reference_range"
+    channels: [email, ehr, sms]
+    template: alerts/abnormal_lab.html
+
+# Security Configuration
+security:
+  data_access:
+    physician:
+      - read_patients
+      - read_encounters
+      - read_lab_results
+      - execute_queries
+    nurse:
+      - read_patients
+      - read_encounters
+      - read_lab_results
+    analyst:
+      - read_aggregated_data
+      - execute_queries
+    admin:
+      - all_access
+
+  encryption:
+    phi:
+      type: AES-256-GCM
+      fields:
+        - name
+        - dob
+        - insurance_id
+        - diagnosis_codes
+
+# Compliance
+compliance:
+  data_retention:
+    medical_records: 10 years
+    lab_results: 7 years
+    audit_logs: 7 years
+
+  hipaa:
+    enabled: true
+    phi_fields:
+      - name
+      - dob
+      - address
+      - phone
+      - email
+      - insurance_id
+    audit_procedure: procedures/hipaa_audit.py
+    
+  audit_logging:
+    enabled: true
+    events:
+      - data_access
+      - phi_export
+      - record_modification
+    retention: 7 years 

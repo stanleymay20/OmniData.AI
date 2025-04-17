@@ -1,0 +1,255 @@
+name: E-commerce Analytics
+version: 1.0.0
+description: Configuration for e-commerce data analysis and reporting
+
+# Data Sources
+data_sources:
+  orders:
+    type: database
+    connection: ${DATABASE_URL}
+    table: orders
+    schema:
+      - name: order_id
+        type: string
+        primary_key: true
+      - name: customer_id
+        type: string
+      - name: order_date
+        type: datetime
+      - name: total_amount
+        type: float
+      - name: status
+        type: string
+      - name: payment_method
+        type: string
+
+  products:
+    type: database
+    connection: ${DATABASE_URL}
+    table: products
+    schema:
+      - name: product_id
+        type: string
+        primary_key: true
+      - name: name
+        type: string
+      - name: category
+        type: string
+      - name: price
+        type: float
+      - name: inventory
+        type: integer
+      - name: supplier_id
+        type: string
+
+  customers:
+    type: database
+    connection: ${DATABASE_URL}
+    table: customers
+    schema:
+      - name: customer_id
+        type: string
+        primary_key: true
+      - name: name
+        type: string
+      - name: email
+        type: string
+      - name: join_date
+        type: datetime
+      - name: country
+        type: string
+      - name: segment
+        type: string
+
+# KPI Definitions
+kpis:
+  revenue:
+    name: Total Revenue
+    description: Total revenue from all orders
+    query: |
+      SELECT SUM(total_amount) as revenue
+      FROM orders
+      WHERE status = 'completed'
+    format: currency
+
+  average_order_value:
+    name: Average Order Value
+    description: Average amount spent per order
+    query: |
+      SELECT AVG(total_amount) as aov
+      FROM orders
+      WHERE status = 'completed'
+    format: currency
+
+  customer_lifetime_value:
+    name: Customer Lifetime Value
+    description: Average revenue per customer
+    query: |
+      SELECT AVG(total_revenue) as clv
+      FROM (
+        SELECT customer_id, SUM(total_amount) as total_revenue
+        FROM orders
+        WHERE status = 'completed'
+        GROUP BY customer_id
+      )
+    format: currency
+
+# Dashboard Templates
+dashboards:
+  executive_summary:
+    title: Executive Dashboard
+    refresh_rate: 1h
+    charts:
+      - name: Revenue Trend
+        type: line
+        metrics: [revenue]
+        dimensions: [order_date]
+        group_by: day
+        
+      - name: Top Products
+        type: bar
+        metrics: [total_amount]
+        dimensions: [product_id]
+        limit: 10
+        
+      - name: Customer Segments
+        type: pie
+        metrics: [customer_count]
+        dimensions: [segment]
+
+  sales_analytics:
+    title: Sales Analytics
+    refresh_rate: 1h
+    charts:
+      - name: Sales by Category
+        type: bar
+        metrics: [total_amount]
+        dimensions: [category]
+        
+      - name: Payment Methods
+        type: pie
+        metrics: [order_count]
+        dimensions: [payment_method]
+        
+      - name: Geographic Distribution
+        type: map
+        metrics: [total_amount]
+        dimensions: [country]
+
+# ETL Pipelines
+pipelines:
+  daily_sales:
+    schedule: "0 0 * * *"  # Daily at midnight
+    steps:
+      - name: Extract Orders
+        type: sql
+        query: |
+          SELECT *
+          FROM orders
+          WHERE order_date >= CURRENT_DATE - INTERVAL '1 day'
+          
+      - name: Transform
+        type: python
+        file: transforms/sales_transform.py
+        
+      - name: Load Warehouse
+        type: sql
+        query_file: queries/load_sales_warehouse.sql
+
+  inventory_sync:
+    schedule: "*/15 * * * *"  # Every 15 minutes
+    steps:
+      - name: Check Stock Levels
+        type: sql
+        query: |
+          SELECT product_id, inventory
+          FROM products
+          WHERE inventory < reorder_point
+          
+      - name: Generate Alerts
+        type: python
+        file: alerts/inventory_alerts.py
+
+# ML Models
+models:
+  churn_prediction:
+    type: classification
+    target: is_churned
+    features:
+      - order_frequency
+      - average_order_value
+      - days_since_last_order
+      - total_orders
+      - customer_segment
+    hyperparameters:
+      model_type: xgboost
+      max_depth: 6
+      learning_rate: 0.1
+      n_estimators: 100
+
+  product_recommendation:
+    type: collaborative_filtering
+    target: product_id
+    features:
+      - customer_id
+      - product_id
+      - rating
+      - purchase_history
+    hyperparameters:
+      model_type: neural_collaborative_filtering
+      embedding_dim: 64
+      layers: [128, 64, 32]
+      learning_rate: 0.001
+
+# Alerts Configuration
+alerts:
+  low_inventory:
+    type: threshold
+    metric: inventory
+    condition: "< reorder_point"
+    channels: [email, slack]
+    template: alerts/low_inventory.html
+
+  high_churn_risk:
+    type: ml_prediction
+    model: churn_prediction
+    threshold: 0.7
+    channels: [email, crm]
+    template: alerts/churn_risk.html
+
+# Security Configuration
+security:
+  data_access:
+    admin:
+      - all_access
+    analyst:
+      - read_orders
+      - read_products
+      - read_customers
+      - execute_queries
+    viewer:
+      - read_dashboards
+      - view_reports
+
+  encryption:
+    customer_data:
+      type: AES-256
+      fields:
+        - email
+        - phone
+        - address
+
+# Compliance
+compliance:
+  data_retention:
+    orders: 7 years
+    customer_data: 5 years
+    logs: 1 year
+
+  gdpr:
+    enabled: true
+    data_subject_fields:
+      - email
+      - name
+      - address
+    deletion_procedure: procedures/gdpr_deletion.py 

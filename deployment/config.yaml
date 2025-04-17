@@ -1,0 +1,73 @@
+environments:
+  development:
+    api:
+      host: localhost
+      port: 8000
+    database:
+      host: localhost
+      port: 5432
+      name: omnidata
+      user: postgres
+      password: postgres
+    mlflow:
+      tracking_uri: http://localhost:5000
+    monitoring:
+      prometheus_port: 9090
+      grafana_port: 3000
+
+  staging:
+    api:
+      host: staging-api.omnidata.ai
+      port: 8000
+    database:
+      host: staging-db.omnidata.ai
+      port: 5432
+      name: omnidata_staging
+      user: omnidata_user
+      password: ${DB_PASSWORD}
+    mlflow:
+      tracking_uri: http://staging-mlflow.omnidata.ai:5000
+    monitoring:
+      prometheus_port: 9090
+      grafana_port: 3000
+
+  production:
+    api:
+      host: api.omnidata.ai
+      port: 8000
+    database:
+      host: db.omnidata.ai
+      port: 5432
+      name: omnidata_prod
+      user: omnidata_user
+      password: ${DB_PASSWORD}
+    mlflow:
+      tracking_uri: http://mlflow.omnidata.ai:5000
+    monitoring:
+      prometheus_port: 9090
+      grafana_port: 3000
+
+# Common configuration across environments
+common:
+  services:
+    - api
+    - frontend
+    - database
+    - mlflow
+    - airflow
+    - prometheus
+    - grafana
+  
+  security:
+    ssl_enabled: true
+    jwt_expiration: 3600
+    cors_origins:
+      - http://localhost:8501
+      - https://*.omnidata.ai
+  
+  logging:
+    level: INFO
+    format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    handlers:
+      - console
+      - file 
