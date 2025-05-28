@@ -94,4 +94,8 @@ yarn-error.log*
 # Temporary files
 *.tmp
 *.temp
-.cache/ 
+.cache/
+
+# Sensitive files
+.continue
+setup_env.ps1 
