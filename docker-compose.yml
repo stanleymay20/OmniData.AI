@@ -8,15 +8,29 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/omnidata
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/scrollintel
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CORS_ORIGINS=${DOMAIN_NAME:-http://localhost:8501}
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - APP_NAME=ScrollIntel
+      - APP_VERSION=v2
+      - INTERPRETER_TYPE=Flame
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
-      - ./:/app
+      - ./scrollintel:/app/scrollintel
     networks:
-      - omnidata_network
+      - scrollintel-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   frontend:
     build:
@@ -25,58 +39,64 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - BACKEND_URL=http://backend:8000
-    depends_on:
-      - backend
+      - BACKEND_URL=${BACKEND_URL:-http://localhost:8000}
+      - DOMAIN_NAME=${DOMAIN_NAME:-localhost}
+      - APP_NAME=ScrollIntel
+      - APP_VERSION=v2
+      - INTERPRETER_TYPE=Flame
     volumes:
-      - ./:/app
+      - ./scrollintel:/app/scrollintel
+      - /app/node_modules
     networks:
-      - omnidata_network
+      - scrollintel-network
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   db:
-    image: postgres:15
+    image: postgres:13
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=omnidata
+      - POSTGRES_DB=scrollintel
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - omnidata_network
+      - scrollintel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  mlflow:
-    build:
-      context: .
-      dockerfile: docker/mlflow.Dockerfile
+  redis:
+    image: redis:6
     ports:
-      - "5000:5000"
-    environment:
-      - MLFLOW_TRACKING_URI=postgresql://postgres:postgres@db:5432/omnidata
-    depends_on:
-      - db
-    networks:
-      - omnidata_network
-
-  airflow:
-    image: apache/airflow:2.7.2
-    environment:
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql://postgres:postgres@db:5432/airflow
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-    ports:
-      - "8080:8080"
-    depends_on:
-      - db
+      - "6379:6379"
     volumes:
-      - ./dags:/opt/airflow/dags
+      - redis_data:/data
     networks:
-      - omnidata_network
+      - scrollintel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
 volumes:
   postgres_data:
-
+  redis_data:
 
 networks:
-  omnidata_network:
+  scrollintel-network:
     driver: bridge
