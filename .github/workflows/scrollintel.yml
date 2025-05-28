@@ -25,16 +25,17 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest pytest-cov
 
-      - name: Run validation
+      - name: Run tests
         run: |
-          # Check Python syntax
-          python -m py_compile scrollintel/**/*.py
+          pytest tests/ --cov=scrollintel --cov-report=xml
 
-          # Run basic tests if they exist
-          if [ -f "run_tests.py" ]; then
-            python run_tests.py
-          fi
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: true
 
       - name: Check frontend dependencies
         run: |

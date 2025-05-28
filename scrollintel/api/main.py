@@ -16,6 +16,8 @@ import json
 import logging
 from pathlib import Path
 import uuid
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 
 from ..interpreter.flame_interpreter import FlameInterpreter
 from ..ui.scrollgraph import ScrollGraph
@@ -43,6 +45,14 @@ scroll_graph = ScrollGraph()
 scroll_sanctify = ScrollSanctify()
 voice_agent = VoiceAgent(os.getenv("OPENAI_API_KEY"))
 project_store = ProjectStore()
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN"),
+    integrations=[FastApiIntegration()],
+    traces_sample_rate=1.0,
+    environment=os.getenv("ENVIRONMENT", "development")
+)
 
 # Initialize API
 app = FastAPI(
