@@ -1,3 +1,8 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Python
 __pycache__/
 *.py[cod]
@@ -19,39 +24,48 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual Environment
 venv/
 ENV/
 env/
-.env
+.venv/
+env.bak/
+venv.bak/
 
 # IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
 # Logs
 *.log
 logs/
-log/
 
-# Database
-*.sqlite3
-*.db
+# Data
+data/
+models/
+temp/
 
 # Docker
 .docker/
+docker-compose.override.yml
 
 # Testing
 .coverage
 htmlcov/
 .pytest_cache/
 .tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
 
 # Distribution
-.DS_Store
 .env.local
 .env.development.local
 .env.test.local
@@ -61,9 +75,23 @@ htmlcov/
 mlruns/
 
 # Custom
-data/
-models/
-temp/
 *.pkl
 *.h5
-*.model 
+*.model
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# SSL
+*.pem
+*.key
+*.crt
+
+# Temporary files
+*.tmp
+*.temp
+.cache/ 
