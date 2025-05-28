@@ -10,6 +10,7 @@ import subprocess
 import sys
 import yaml
 from typing import Dict, Any
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(
@@ -18,138 +19,115 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class Deployer:
-    """Manages the deployment of OmniData.AI platform."""
+def load_config(env):
+    """Load configuration for the specified environment."""
+    config_path = Path(__file__).parent / 'config.yaml'
+    with open(config_path) as f:
+        config = yaml.safe_load(f)
     
-    def __init__(self, config_path: str, environment: str):
-        """Initialize deployer with configuration."""
-        self.config_path = config_path
-        self.environment = environment
-        self.config = self._load_config()
-        
-    def _load_config(self) -> Dict[str, Any]:
-        """Load deployment configuration."""
-        try:
-            with open(self.config_path, 'r') as f:
-                config = yaml.safe_load(f)
-                return config['environments'][self.environment]
-        except Exception as e:
-            logger.error(f"Failed to load config: {str(e)}")
-            sys.exit(1)
+    if env not in config['environments']:
+        raise ValueError(f"Environment {env} not found in config.yaml")
     
-    def _check_prerequisites(self) -> None:
-        """Check if all prerequisites are met."""
-        required_tools = ['docker', 'docker-compose']
-        
-        # Add kubectl requirement for non-development environments
-        if self.environment != 'development':
-            required_tools.append('kubectl')
-        
-        for tool in required_tools:
-            try:
-                subprocess.run([tool, '--version'], check=True, capture_output=True)
-                logger.info(f"{tool} is available")
-            except subprocess.CalledProcessError:
-                logger.error(f"{tool} is required but not found")
-                sys.exit(1)
+    return {**config['common'], **config['environments'][env]}
+
+def setup_ssl(domain):
+    """Set up SSL certificates using Let's Encrypt."""
+    print(f"Setting up SSL for {domain}")
+    subprocess.run([
+        'certbot', 'certonly',
+        '--standalone',
+        '--agree-tos',
+        '--non-interactive',
+        '--domain', domain,
+        '--email', os.getenv('ADMIN_EMAIL')
+    ], check=True)
+
+def update_env_file(config):
+    """Update .env file with environment-specific values."""
+    env_vars = {
+        'DATABASE_URL': f"postgresql://{config['database']['user']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['name']}",
+        'API_HOST': config['api']['host'],
+        'API_PORT': config['api']['port'],
+        'MLFLOW_TRACKING_URI': config['mlflow']['tracking_uri'],
+        'PROMETHEUS_PORT': config['monitoring']['prometheus_port'],
+        'GRAFANA_PORT': config['monitoring']['grafana_port']
+    }
     
-    def _update_env_file(self) -> None:
-        """Update environment variables file."""
-        env_vars = {
-            'ENVIRONMENT': self.environment,
-            'API_HOST': self.config['api']['host'],
-            'API_PORT': str(self.config['api']['port']),
-            'DB_HOST': self.config['database']['host'],
-            'DB_PORT': str(self.config['database']['port']),
-            'DB_NAME': self.config['database']['name'],
-            'DB_USER': os.getenv('DB_USER', self.config['database']['user']),
-            'DB_PASSWORD': os.getenv('DB_PASSWORD', self.config['database']['password']),
-            'MLFLOW_TRACKING_URI': os.getenv('MLFLOW_TRACKING_URI', self.config['mlflow']['tracking_uri']),
-            'JWT_SECRET_KEY': os.getenv('JWT_SECRET_KEY', 'development-secret'),
-            'SENTRY_DSN': os.getenv('SENTRY_DSN', '')
-        }
-        
-        with open('.env', 'w') as f:
-            for key, value in env_vars.items():
-                f.write(f"{key}={value}\n")
-        
-        logger.info("Environment file updated")
+    with open('.env', 'w') as f:
+        for key, value in env_vars.items():
+            f.write(f"{key}={value}\n")
+
+def deploy_services(config, env):
+    """Deploy services using docker-compose."""
+    compose_file = 'docker-compose.yml'
+    if env != 'development':
+        compose_file = f"deployment/docker-compose.{env}.yml"
     
-    def deploy(self) -> None:
-        """Execute deployment process."""
-        try:
-            logger.info(f"Starting deployment for environment: {self.environment}")
-            
-            # Check prerequisites
-            self._check_prerequisites()
-            
-            # Update environment variables
-            self._update_env_file()
-            
-            # Build and deploy using docker-compose
-            subprocess.run(
-                ['docker-compose', 'build'],
-                check=True
-            )
-            
-            subprocess.run(
-                ['docker-compose', 'up', '-d'],
-                check=True
-            )
-            
-            logger.info("Deployment completed successfully")
-            
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Deployment failed: {str(e)}")
-            sys.exit(1)
-        except Exception as e:
-            logger.error(f"Unexpected error during deployment: {str(e)}")
-            sys.exit(1)
-    
-    def rollback(self) -> None:
-        """Rollback deployment in case of failure."""
-        try:
-            logger.info("Initiating rollback")
-            
-            subprocess.run(
-                ['docker-compose', 'down'],
-                check=True
-            )
-            
-            logger.info("Rollback completed successfully")
-            
-        except Exception as e:
-            logger.error(f"Rollback failed: {str(e)}")
-            sys.exit(1)
+    subprocess.run([
+        'docker-compose',
+        '-f', compose_file,
+        'up',
+        '-d',
+        '--build'
+    ], check=True)
+
+def setup_monitoring():
+    """Set up monitoring tools."""
+    subprocess.run([
+        'docker-compose',
+        '-f', 'deployment/monitoring.yml',
+        'up',
+        '-d'
+    ], check=True)
+
+def verify_deployment(config):
+    """Verify the deployment is working."""
+    health_check = subprocess.run([
+        'python',
+        'deployment/healthcheck.py',
+        '--host', config['api']['host'],
+        '--port', str(config['api']['port'])
+    ])
+    return health_check.returncode == 0
 
 def main():
-    """Main entry point for deployment script."""
-    parser = argparse.ArgumentParser(description='Deploy OmniData.AI platform')
-    parser.add_argument(
-        '--environment',
-        choices=['development', 'staging', 'production'],
-        default='development',
-        help='Deployment environment'
-    )
-    parser.add_argument(
-        '--config',
-        default='deployment/config.yaml',
-        help='Path to configuration file'
-    )
-    parser.add_argument(
-        '--rollback',
-        action='store_true',
-        help='Rollback deployment'
-    )
-    
+    parser = argparse.ArgumentParser(description='Deploy OmniData.AI services')
+    parser.add_argument('--env', choices=['development', 'staging', 'production'],
+                      default='development', help='Deployment environment')
     args = parser.parse_args()
-    
-    deployer = Deployer(args.config, args.environment)
-    
-    if args.rollback:
-        deployer.rollback()
-    else:
-        deployer.deploy()
+
+    try:
+        # Load configuration
+        config = load_config(args.env)
+        print(f"Deploying to {args.env} environment")
+
+        # Update environment variables
+        update_env_file(config)
+        print("Updated environment variables")
+
+        # Set up SSL for non-development environments
+        if args.env != 'development':
+            setup_ssl(config['api']['host'])
+            print("SSL certificates configured")
+
+        # Deploy services
+        deploy_services(config, args.env)
+        print("Services deployed")
+
+        # Set up monitoring
+        setup_monitoring()
+        print("Monitoring configured")
+
+        # Verify deployment
+        if verify_deployment(config):
+            print("Deployment verified successfully")
+        else:
+            print("Deployment verification failed", file=sys.stderr)
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"Deployment failed: {str(e)}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main() 

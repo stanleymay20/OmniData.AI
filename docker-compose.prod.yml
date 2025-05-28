@@ -5,69 +5,71 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    restart: always
     environment:
-      - NODE_ENV=production
+      - API_HOST=0.0.0.0
+      - API_PORT=6006
       - DEBUG=false
+      - EXOUSIA_SECRET=${EXOUSIA_SECRET}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_URL=${REDIS_URL}
       - SENTRY_DSN=${SENTRY_DSN}
-    env_file: .env
+      - LOGROCKET_ID=${LOGROCKET_ID}
+    ports:
+      - "6006:6006"
     depends_on:
       - redis
-      - db
-    networks:
-      - scrollintel_network
+      - postgres
+    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    restart: always
     environment:
-      - NODE_ENV=production
-      - REACT_APP_API_URL=${API_URL}
-      - REACT_APP_LOGROCKET_ID=${LOGROCKET_ID}
-    env_file: .env
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - REACT_APP_SENTRY_DSN=${REACT_APP_SENTRY_DSN}
+      - REACT_APP_LOGROCKET_ID=${REACT_APP_LOGROCKET_ID}
+    ports:
+      - "3000:3000"
     depends_on:
       - backend
-    networks:
-      - scrollintel_network
+    restart: unless-stopped
 
   redis:
     image: redis:alpine
-    restart: always
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
-    networks:
-      - scrollintel_network
+    restart: unless-stopped
 
-  db:
+  postgres:
     image: postgres:13
-    restart: always
     environment:
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
-      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-    networks:
-      - scrollintel_network
+    restart: unless-stopped
 
   nginx:
     image: nginx:alpine
-    restart: always
     ports:
       - "80:80"
       - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d
       - ./nginx/ssl:/etc/nginx/ssl
-      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
       - frontend
-    networks:
-      - scrollintel_network
+    restart: unless-stopped
 
 volumes:
   redis_data:

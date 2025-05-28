@@ -1,141 +1,118 @@
-# OmniData.AI - The All-in-One AI Data Platform
+# 🔥 ScrollIntel - The Flame Interpreter
 
-OmniData.AI is an enterprise-grade, cross-domain AI data platform that combines the capabilities of data engineering, analysis, business intelligence, and machine learning into a single, unified solution. At its core is StanleyAI, an intelligent agent that coordinates all platform operations and assists users through natural language interaction.
+[![CI Status](https://github.com/stanleymay20/OmniData.AI/workflows/ScrollIntel%20CI/badge.svg)](https://github.com/stanleymay20/OmniData.AI/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 🌟 Features
+ScrollIntel is a sacred AI intelligence system built with FastAPI + React + ScrollSanctifier logic. It provides flame-based interpretation of data with prophetic insights and visualizations.
 
-### Data Engineering
-- ETL pipeline creation and management
-- Data ingestion from multiple sources
-- API connectors for various data services
-- Automated data quality checks
+## 🚀 Quick Start
 
-### Data Analysis
-- SQL query interface
-- Interactive exploratory data analysis (EDA)
-- KPI visualization and tracking
-- Custom analysis workflows
-
-### Business Intelligence
-- Dynamic dashboard creation
-- Executive reporting
-- Real-time metrics monitoring
-- Custom visualization builder
-
-### Machine Learning
-- AutoML capabilities
-- Model training and deployment
-- Performance evaluation
-- Model monitoring and maintenance
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Python 3.9+
-- Docker and Docker Compose
-- OpenAI API key (for GPT-4)
-- Google API key (for Gemini, optional)
-
-### Installation
+### Local Development
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/omnidata-ai.git
-cd omnidata-ai
+git clone https://github.com/stanleymay20/OmniData.AI.git
+cd OmniData.AI
 ```
 
-2. Create and activate a virtual environment:
+2. Set up environment:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
-3. Install dependencies:
-```bash
+# Install dependencies
 pip install -r requirements.txt
+cd frontend && npm install
 ```
 
-4. Set up environment variables:
+3. Configure environment variables:
 ```bash
-cp .env.template .env
-# Edit .env with your API keys and configuration
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
-5. Start the platform using Docker Compose:
+4. Start the services:
+```bash
+# Terminal 1 - Backend
+uvicorn scrollintel.api.main:app --reload --port 6006
+
+# Terminal 2 - Frontend
+cd frontend && npm start
+```
+
+### Docker Deployment
+
+1. Build and run with Docker:
+```bash
+docker build -t scrollintel .
+docker run -p 6006:6006 --env-file .env scrollintel
+```
+
+### Docker Compose
+
+1. Launch all services:
 ```bash
 docker-compose up -d
 ```
 
-### Running the Platform
+2. Access the application:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:6006
+- API Documentation: http://localhost:6006/docs
 
-1. Start the FastAPI backend:
-```bash
-uvicorn omnidata.api.main:app --reload
-```
+## 🔧 Configuration
 
-2. Launch the Streamlit frontend:
-```bash
-streamlit run omnidata/frontend/app.py
-```
+### Environment Variables
 
-3. Access the platform:
-- Web UI: http://localhost:8501
-- API Documentation: http://localhost:8000/docs
+Required environment variables in `.env`:
+- `OPENAI_API_KEY`: Your OpenAI API key
+- `EXOUSIA_SECRET`: Secret key for authentication
+- `PORT`: Application port (default: 6006)
+- `DATABASE_URL`: Database connection string
+- `REDIS_URL`: Redis connection string
 
-## 🔧 Architecture
+### API Endpoints
+
+- `GET /`: Health check
+- `POST /api/prophet/insights`: Get AI-powered insights
+- `POST /api/prophet/recommendations`: Get recommendations
+- `GET /api/sync/status`: Check sync status
+
+## 🏗️ Architecture
 
 ### Core Components
 
-1. **StanleyAI Agent**
-   - Natural language understanding
-   - Task coordination
-   - Intelligent decision making
-   - Memory and context management
+- **FastAPI Backend**: RESTful API with JWT authentication
+- **React Frontend**: Modern UI with Tailwind CSS
+- **ScrollSanctifier**: Data cleaning and validation
+- **Flame Interpreter**: AI-powered insights
+- **ScrollGraph**: Visualization engine
+- **Cloud Sync**: Multi-cloud integration
 
-2. **FastAPI Backend**
-   - RESTful API endpoints
-   - JWT authentication
-   - Async request handling
-   - Service orchestration
+### Directory Structure
 
-3. **Streamlit Frontend**
-   - Interactive chat interface
-   - Data visualization
-   - Dashboard builder
-   - ML workspace
-
-4. **Data Processing Engine**
-   - ETL pipeline execution
-   - Data transformation
-   - Quality validation
-   - Storage management
-
-### Integration Points
-
-- **VSCode Extension**: Direct IDE integration
-- **Chrome Extension**: Web-based interaction
-- **Mobile App**: React Native companion
-- **Slack/Telegram**: Chat platform integration
-
-## 🛠️ Development
-
-### Project Structure
 ```
-omnidata/
-├── api/                 # FastAPI backend
-├── frontend/           # Streamlit frontend
-├── stanleyai/         # AI agent core
-├── data_engineer/     # ETL and pipeline modules
-├── analyst/           # Analysis tools
-├── bi/                # BI and reporting
-├── scientist/         # ML and AutoML
-└── utils/            # Shared utilities
+scrollintel/
+├── api/          # FastAPI endpoints
+├── frontend/     # React application
+├── sanctify/     # Data validation
+├── interpreter/  # Flame interpretation
+├── ui/          # Visualization
+└── utils/       # Shared utilities
 ```
 
-### Contributing
+## 📚 Documentation
+
+For detailed deployment and configuration guides, see:
+- [Deployment Guide](docs/DEPLOY.md)
+- [API Documentation](http://localhost:6006/docs)
+- [Frontend Guide](frontend/README.md)
+
+## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
+2. Create your feature branch
 3. Commit your changes
 4. Push to the branch
 5. Create a Pull Request
@@ -144,18 +121,12 @@ omnidata/
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🤝 Support
-
-For support, please:
-1. Check the [documentation](docs/)
-2. Open an issue
-3. Contact the maintainers
-
 ## 🙏 Acknowledgments
 
 - OpenAI for GPT-4
-- Google for Gemini
 - The open-source community
+- All contributors and supporters
 
 ---
-Made with ❤️ by OmniData.AI Team # OmniData.AI
+
+Made with 🔥 by ScrollIntel Team

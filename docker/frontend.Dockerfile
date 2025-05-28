@@ -1,31 +1,34 @@
-# Use Python 3.9 slim image
-FROM python:3.9-slim
+FROM node:16-slim
 
-# Set working directory
 WORKDIR /app
-
-# Set environment variables
-ENV PYTHONPATH=/app \
-    PYTHONUNBUFFERED=1 \
-    DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
     build-essential \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements file
-COPY requirements.txt .
+# Copy package files
+COPY package*.json ./
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies
+RUN npm install
 
-# Copy application code
-COPY . .
+# Copy the application code
+COPY scrollintel /app/scrollintel
 
-# Expose port
+# Set environment variables
+ENV NODE_ENV=development
+ENV PORT=8501
+
+# Expose the port
 EXPOSE 8501
 
-# Start the Streamlit application
-CMD ["streamlit", "run", "omnidata/frontend/app.py", "--server.port=8501", "--server.address=0.0.0.0"] 
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+# Run the application
+CMD ["npm", "run", "dev"] 

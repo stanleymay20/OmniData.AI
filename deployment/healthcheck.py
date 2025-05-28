@@ -17,143 +17,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-class HealthChecker:
-    """Monitors health of OmniData.AI services."""
-    
-    def __init__(
-        self,
-        api_url: str,
-        frontend_url: str,
-        db_url: str,
-        mlflow_url: str,
-        airflow_url: str
-    ):
-        """Initialize health checker with service URLs."""
-        self.services = {
-            'api': api_url,
-            'frontend': frontend_url,
-            'database': db_url,
-            'mlflow': mlflow_url,
-            'airflow': airflow_url
-        }
-    
-    def check_service(self, service: str, url: str) -> Dict[str, str]:
-        """Check health of a specific service."""
-        try:
-            response = requests.get(f"{url}/health", timeout=5)
-            response.raise_for_status()
-            
-            return {
-                'service': service,
-                'status': 'healthy',
-                'latency': f"{response.elapsed.total_seconds() * 1000:.2f}ms"
-            }
-            
-        except requests.RequestException as e:
-            return {
-                'service': service,
-                'status': 'unhealthy',
-                'error': str(e)
-            }
-    
-    def check_all_services(self) -> List[Dict[str, str]]:
-        """Check health of all services."""
-        results = []
-        
-        for service, url in self.services.items():
-            result = self.check_service(service, url)
-            results.append(result)
-            
-            if result['status'] == 'unhealthy':
-                logger.warning(f"{service} is unhealthy: {result.get('error')}")
+def check_service(url: str, timeout: int = 5) -> bool:
+    try:
+        response = requests.get(url, timeout=timeout)
+        return response.status_code == 200
+    except requests.RequestException:
+        return False
+
+def check_services(services: Dict[str, str], max_retries: int = 5, retry_delay: int = 10) -> List[str]:
+    failed_services = []
+    for name, url in services.items():
+        print(f"Checking {name} at {url}...")
+        for attempt in range(max_retries):
+            if check_service(url):
+                print(f"✓ {name} is healthy")
+                break
+            if attempt < max_retries - 1:
+                print(f"✗ {name} not ready, retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
             else:
-                logger.info(f"{service} is healthy (latency: {result['latency']})")
-        
-        return results
-    
-    def monitor(
-        self,
-        interval: int = 60,
-        max_failures: Optional[int] = None
-    ) -> None:
-        """Continuously monitor services."""
-        failure_count = 0
-        
-        while True:
-            unhealthy_services = []
-            results = self.check_all_services()
-            
-            for result in results:
-                if result['status'] == 'unhealthy':
-                    unhealthy_services.append(result['service'])
-            
-            if unhealthy_services:
-                failure_count += 1
-                logger.error(f"Unhealthy services detected: {', '.join(unhealthy_services)}")
-                
-                if max_failures and failure_count >= max_failures:
-                    logger.critical(f"Maximum failures ({max_failures}) reached")
-                    sys.exit(1)
-            else:
-                failure_count = 0
-                logger.info("All services are healthy")
-            
-            time.sleep(interval)
+                print(f"✗ {name} failed health check")
+                failed_services.append(name)
+    return failed_services
 
 def main():
     """Main entry point for health check script."""
-    parser = argparse.ArgumentParser(description='Monitor OmniData.AI services')
-    parser.add_argument(
-        '--api-url',
-        default='http://localhost:8000',
-        help='API service URL'
-    )
-    parser.add_argument(
-        '--frontend-url',
-        default='http://localhost:8501',
-        help='Frontend service URL'
-    )
-    parser.add_argument(
-        '--db-url',
-        default='http://localhost:5432',
-        help='Database service URL'
-    )
-    parser.add_argument(
-        '--mlflow-url',
-        default='http://localhost:5000',
-        help='MLflow service URL'
-    )
-    parser.add_argument(
-        '--airflow-url',
-        default='http://localhost:8080',
-        help='Airflow service URL'
-    )
-    parser.add_argument(
-        '--interval',
-        type=int,
-        default=60,
-        help='Monitoring interval in seconds'
-    )
-    parser.add_argument(
-        '--max-failures',
-        type=int,
-        help='Maximum number of consecutive failures before exit'
-    )
-    
+    parser = argparse.ArgumentParser(description='Health check for OmniData.AI services')
+    parser.add_argument('--host', default='localhost', help='Host to check')
+    parser.add_argument('--port', type=int, default=8000, help='Port to check')
     args = parser.parse_args()
-    
-    checker = HealthChecker(
-        api_url=args.api_url,
-        frontend_url=args.frontend_url,
-        db_url=args.db_url,
-        mlflow_url=args.mlflow_url,
-        airflow_url=args.airflow_url
-    )
-    
-    checker.monitor(
-        interval=args.interval,
-        max_failures=args.max_failures
-    )
+
+    base_url = f"http://{args.host}:{args.port}"
+    services = {
+        'Frontend': f"{base_url}:8501",
+        'Backend API': f"{base_url}/health",
+        'Grafana': f"{base_url}:3000",
+        'Prometheus': f"{base_url}:9090/-/healthy"
+    }
+
+    failed_services = check_services(services)
+    if failed_services:
+        print(f"\nFailed services: {', '.join(failed_services)}")
+        sys.exit(1)
+    else:
+        print("\nAll services are healthy!")
 
 if __name__ == '__main__':
     main() 

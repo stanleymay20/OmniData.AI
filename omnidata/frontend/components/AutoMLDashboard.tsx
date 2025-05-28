@@ -10,6 +10,7 @@ import {
   Grid,
   CircularProgress,
   Alert,
+  AlertTitle,
 } from '@mui/material';
 import { DropzoneArea } from 'mui-file-upload';
 import {
@@ -99,14 +100,19 @@ export default function AutoMLDashboard() {
         });
 
         if (!response.ok) {
-          throw new Error('Failed to upload file');
+          const errorData = await response.json();
+          throw new Error(errorData.detail || 'Failed to upload file');
         }
 
         const data = await response.json();
+        if (!data.profile) {
+          throw new Error('Invalid response format from server');
+        }
+        
         setDataProfile(data.profile);
         handleNext();
       } catch (err) {
-        setError(err.message);
+        setError(err instanceof Error ? err.message : 'An unexpected error occurred');
       } finally {
         setLoading(false);
       }
@@ -320,9 +326,19 @@ export default function AutoMLDashboard() {
   return (
     <Box sx={{ width: '100%' }}>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2 }}
+          onClose={() => setError(null)}
+        >
+          <AlertTitle>Error</AlertTitle>
           {error}
         </Alert>
+      )}
+      {loading && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+          <CircularProgress />
+        </Box>
       )}
       <Stepper activeStep={activeStep}>
         {steps.map((label) => (
